@@ -21,8 +21,9 @@ This tool reads the logs programmatically, recognizes the scan pattern (one sour
 1. **Parse** — read the log line by line; split the syslog wrapper from the `filterlog` CSV and extract the relevant fields.
 2. **Validate & tally** — keep IPv4 TCP/UDP lines; reject everything else into three counted buckets (`not IPv4`, `too short`, `no ports`). Nothing is dropped silently — every skipped line is accounted for by reason.
 3. **Record** — each valid line becomes a record of `(time, source IP, dest port)`.
-4. **Window** — per source IP, maintain a sliding 60-second deque of recent `(time, port)` entries, expiring old ones from the front (possibly several at once if there has been a gap in traffic).
-5. **Detect & alert** — count the *distinct* ports in each source's window; if the count reaches 20 or more, flag the source. Alerts are edge-triggered (once per IP per run) to avoid alert fatigue.
+4. **Sort**: order the records by timestamp before detection. OPNsense exports logs newest-first, and the sliding window only works on oldest-first input (see Testing).
+5. **Window** — per source IP, maintain a sliding 60-second deque of recent `(time, port)` entries, expiring old ones from the front (possibly several at once if there has been a gap in traffic).
+6. **Detect & alert** — count the *distinct* ports in each source's window; if the count reaches 20 or more, flag the source. Alerts are edge-triggered (once per IP per run) to avoid alert fatigue.
 
 ---
 
@@ -42,10 +43,21 @@ The chosen threshold — **20 distinct destination ports from one source within 
 
 ## Testing
 
-The detector was validated in both directions, using traffic generated in a controlled home lab (Kali attacker → OPNsense firewall → Ubuntu victim):
+Three sample logs are included, each with a known expected result:
 
-- **True negative** — run against a benign traffic log with no scan → no alert (correctly silent on normal traffic).
-- **True positive** — run against a capture containing a real `nmap` scan → a single alert correctly identifying the attacker IP (`192.168.2.134`).
+| Sample | What it contains | Expected result |
+|---|---|---|
+| `scan_sample.log` | Real capture of an `nmap` scan from the Kali attacker (`192.168.2.134`) against the Ubuntu victim, generated in the home lab (Kali → OPNsense → Ubuntu) | **One alert**, on `192.168.2.134` (true positive) |
+| `benign_sample.log` | Real capture of normal victim traffic (browsing, updates, idle) | **No alert**; skip counters `not_ipv4: 174, too_short: 4, junk: 1` (true negative) |
+| `slow_traffic_test.log` | Synthetic regression test: one source touching a new port every 30 seconds, newest-first | **No alert** (never more than 2 distinct ports in any 60 seconds) |
+
+### Bug found and fixed: log order
+
+Regenerating the scan capture revealed that OPNsense exports logs **newest-first**. The expiry check (`now - oldest > 60`) assumes oldest-first input; on reversed input the difference is negative, so nothing ever expired and the "60-second window" silently became "the whole file." Slow, harmless traffic was then flagged as a scan (`slow_traffic_test.log` reproduced the false positive).
+
+The original tests had not caught this: the real scan happens within one second, so it alerts either way, and the benign traffic touched too few ports in total to reach the threshold. The fix sorts records by timestamp before detection, so the result no longer depends on input order. `slow_traffic_test.log` is kept as a regression test.
+
+The skip counters also proved their worth during testing: a run on an accidentally empty file produced "no alert" (which looks like a pass), but every counter read zero, which exposed that nothing had been read.
 
 ---
 
@@ -70,14 +82,16 @@ These are named deliberately. A distinct-port-per-source metric with a 60-second
 
 ## Usage
 
-1. Place the firewall log to analyze in the project directory, named `firewallLog.log`.
-2. Run:
-   ```
-   python fvm.py
-   ```
-3. The script prints any port-scan alerts (with the flagged source IP), followed by parse statistics (lines skipped, broken down by reason).
+The script reads a log named `firewallLog.log` from the project folder. Copy one of the samples into that name, then run it:
 
-The log must be in OPNsense `filterlog` format (a tab-separated syslog wrapper followed by a comma-separated `filterlog` record).
+```
+cp scan_sample.log firewallLog.log      # Windows PowerShell: Copy-Item scan_sample.log firewallLog.log -Force
+python fvm.py
+```
+
+It prints any port-scan alerts (with the flagged source IP), followed by parse statistics (lines skipped, broken down by reason).
+
+To analyse your own capture, export the OPNsense firewall log in raw `filterlog` format (a tab-separated syslog wrapper followed by a comma-separated `filterlog` record, one entry per line) and save it as `firewallLog.log`.
 
 ---
 
