@@ -52,7 +52,7 @@ with open("firewallLog.log") as file:
         else:
             scanAndNotIP4 = scanAndNotIP4 + 1
 
-
+    records.sort(key=lambda r: r.unix)
     alerted = set()
     for log in records:
         if log.sourceIp not in windows:
