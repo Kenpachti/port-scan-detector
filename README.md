@@ -2,7 +2,7 @@
 
 A detection tool that parses OPNsense firewall logs (`filterlog` format) and flags source IPs performing port-scan reconnaissance — one source touching an abnormal number of distinct destination ports within a short time window.
 
-This is the second project in a defensive-security portfolio, following the SSH Triage tool. It reuses the same detection-engineering skeleton (parse → measure a baseline → set a defended threshold → detect → document blind spots) applied to a new log source: firewall logs.
+This is the second project in a defensive-security portfolio, following the SSH Triage tool. It reuses the same detection-engineering skeleton (parse → set a defended threshold → detect → document blind spots) applied to a new log source: firewall logs.
 
 ---
 
@@ -75,7 +75,6 @@ These are named deliberately. A distinct-port-per-source metric with a 60-second
 
 - **IPv4 only** — v1 handles IPv4; IPv6 lines are out of scope (skipped and tallied). Defensible because the modeled threat is delivered over IPv4.
 - **Batch, not live** — analyzes a saved log file, not a real-time stream.
-- **Alert once per IP per run** — an IP that scans, stops, and scans again later will not re-alert within the same run.
 - **Clock / NTP caveat** — during capture, the firewall's NTP daemon was down, so its clock had drifted and the log timestamps were skewed off true time. This does *not* affect detection: the sliding window uses *relative* time (`now − oldest`), and since both timestamps come from the same skewed clock, the offset cancels out in the subtraction — a 60-second gap is still 60 seconds. However, accurate time (working NTP) would be needed in production to timestamp alerts correctly and correlate events with other systems' logs.
 
 ---
@@ -97,7 +96,6 @@ To analyse your own capture, export the OPNsense firewall log in raw `filterlog`
 
 ## Possible future work
 
-- Re-arm alerts after a scan ends (cooldown) instead of once-per-run.
 - Add TCP-flag signal (lone SYN with no completed handshake) as a harder-to-false-positive indicator.
 - Add a distinct-destination-IP metric to catch horizontal sweeps.
 - Extend parsing to IPv6.
