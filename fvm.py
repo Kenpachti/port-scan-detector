@@ -8,7 +8,7 @@ date_format = "%Y-%m-%dT%H:%M:%S"
 #Record Class
 @dataclass
 class LogRecord:
-    unix: int
+    unix: float
     sourceIp: str
     destinationPort: int
 
@@ -73,6 +73,9 @@ with open("firewallLog.log") as file:
         if(distinct >= 20) and log.sourceIp not in alerted:
             print("Alert more than 20 ports scanned in under one minute from: " + log.sourceIp)
             alerted.add(log.sourceIp)
+            
+        if (distinct < 10) and log.sourceIp in alerted:
+            alerted.discard(log.sourceIp) 
 
 
 
