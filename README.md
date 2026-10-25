@@ -23,7 +23,7 @@ This tool reads the logs programmatically, recognizes the scan pattern (one sour
 3. **Record** — each valid line becomes a record of `(time, source IP, dest port)`.
 4. **Sort**: order the records by timestamp before detection. OPNsense exports logs newest-first, and the sliding window only works on oldest-first input (see Testing).
 5. **Window** — per source IP, maintain a sliding 60-second deque of recent `(time, port)` entries, expiring old ones from the front (possibly several at once if there has been a gap in traffic).
-6. **Detect & alert** — count the *distinct* ports in each source's window; if the count reaches 20 or more, flag the source. Alerts are edge-triggered (once per IP per run) to avoid alert fatigue.
+6. **Detect & alert** — count the distinct ports in each source's window; if the count reaches 20 or more, flag the source. Alerts are edge-triggered: a source alerts once when it crosses the threshold, and is re-armed only when its distinct-port count falls below 10. The gap between the alert level (20) and the reset level (10) stops a source hovering around 20 from alerting repeatedly.
 
 ---
 
@@ -43,13 +43,18 @@ The chosen threshold — **20 distinct destination ports from one source within 
 
 ## Testing
 
-Three sample logs are included, each with a known expected result:
+Six sample logs are included, each with a known expected result:
 
 | Sample | What it contains | Expected result |
 |---|---|---|
 | `scan_sample.log` | Real capture of an `nmap` scan from the Kali attacker (`192.168.2.134`) against the Ubuntu victim, generated in the home lab (Kali → OPNsense → Ubuntu) | **One alert**, on `192.168.2.134` (true positive) |
 | `benign_sample.log` | Real capture of normal victim traffic (browsing, updates, idle) | **No alert**; skip counters `not_ipv4: 174, too_short: 4, junk: 1` (true negative) |
 | `slow_traffic_test.log` | Synthetic regression test: one source touching a new port every 30 seconds, newest-first | **No alert** (never more than 2 distinct ports in any 60 seconds) |
+| tests/test_one_scan.log | Synthetic: one scan of 25 distinct ports plus a normal user | One alert |
+| tests/test_two_scans.log | Synthetic: the same scan, then a second scan of 30 ports 30 minutes later | Two alerts (the source re-arms during the quiet period) |
+| tests/test_gap_20s.log | Synthetic: a second scan starting 20 seconds after the first ends | One alert (the first scan's ports are still in the window, so it counts as one continuing scan) |
+
+The three `tests/` logs are synthetic, made to check the re-arm behaviour. The real captures are `scan_sample.log` and `benign_sample.log`. To run any of them, copy it to `firewallLog.log` as described in Usage.
 
 ### Bug found and fixed: log order
 
@@ -76,6 +81,8 @@ These are named deliberately. A distinct-port-per-source metric with a 60-second
 - **IPv4 only** — v1 handles IPv4; IPv6 lines are out of scope (skipped and tallied). Defensible because the modeled threat is delivered over IPv4.
 - **Batch, not live** — analyzes a saved log file, not a real-time stream.
 - **Clock / NTP caveat** — during capture, the firewall's NTP daemon was down, so its clock had drifted and the log timestamps were skewed off true time. This does *not* affect detection: the sliding window uses *relative* time (`now − oldest`), and since both timestamps come from the same skewed clock, the offset cancels out in the subtraction — a 60-second gap is still 60 seconds. However, accurate time (working NTP) would be needed in production to timestamp alerts correctly and correlate events with other systems' logs.
+- **Re-arm needs another packet** — the window only shrinks when a new packet arrives from the same source. In a batch run this makes no difference, but in a live stream a source that scans once and then goes silent would stay in the "already alerted" state until it sends again.
+- **Close-together scans merge** — a second scan that starts before the first scan's distinct-port count has fallen below 10 is counted as part of the same scan, so it produces no second alert.
 
 ---
 
