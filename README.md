@@ -54,7 +54,7 @@ Six sample logs are included, each with a known expected result:
 | 'tests/test_two_scans.log' | Synthetic: the same scan, then a second scan of 30 ports 30 minutes later | Two alerts (the source re-arms during the quiet period) |
 | 'tests/test_gap_20s.log' | Synthetic: a second scan starting 20 seconds after the first ends | One alert (the first scan's ports are still in the window, so it counts as one continuing scan) |
 
-The three `tests/` logs are synthetic, made to check the re-arm behaviour. The real captures are `scan_sample.log` and `benign_sample.log`. To run any of them, copy it to `firewallLog.log` as described in Usage.
+The last three `tests/` logs are synthetic, made to check the re-arm behaviour. The real captures are `scan_sample.log` and `benign_sample.log`. To run any of them, copy it to `firewallLog.log` as described in Usage.
 
 ### Bug found and fixed: log order
 
