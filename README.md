@@ -47,12 +47,12 @@ Six sample logs are included, each with a known expected result:
 
 | Sample | What it contains | Expected result |
 |---|---|---|
-| `scan_sample.log` | Real capture of an `nmap` scan from the Kali attacker (`192.168.2.134`) against the Ubuntu victim, generated in the home lab (Kali → OPNsense → Ubuntu) | **One alert**, on `192.168.2.134` (true positive) |
-| `benign_sample.log` | Real capture of normal victim traffic (browsing, updates, idle) | **No alert**; skip counters `not_ipv4: 174, too_short: 4, junk: 1` (true negative) |
-| `slow_traffic_test.log` | Synthetic regression test: one source touching a new port every 30 seconds, newest-first | **No alert** (never more than 2 distinct ports in any 60 seconds) |
-| tests/test_one_scan.log | Synthetic: one scan of 25 distinct ports plus a normal user | One alert |
-| tests/test_two_scans.log | Synthetic: the same scan, then a second scan of 30 ports 30 minutes later | Two alerts (the source re-arms during the quiet period) |
-| tests/test_gap_20s.log | Synthetic: a second scan starting 20 seconds after the first ends | One alert (the first scan's ports are still in the window, so it counts as one continuing scan) |
+| 'tests/scan_sample.log' | Real capture of an `nmap` scan from the Kali attacker (`192.168.2.134`) against the Ubuntu victim, generated in the home lab (Kali → OPNsense → Ubuntu) | **One alert**, on `192.168.2.134` (true positive) |
+| 'tests/benign_sample.log' | Real capture of normal victim traffic (browsing, updates, idle) | **No alert**; skip counters `not_ipv4: 174, too_short: 4, junk: 1` (true negative) |
+| 'tests/slow_traffic_test.log' | Synthetic regression test: one source touching a new port every 30 seconds, newest-first | **No alert** (never more than 2 distinct ports in any 60 seconds) |
+| 'tests/test_one_scan.log' | Synthetic: one scan of 25 distinct ports plus a normal user | One alert |
+| 'tests/test_two_scans.log' | Synthetic: the same scan, then a second scan of 30 ports 30 minutes later | Two alerts (the source re-arms during the quiet period) |
+| 'tests/test_gap_20s.log' | Synthetic: a second scan starting 20 seconds after the first ends | One alert (the first scan's ports are still in the window, so it counts as one continuing scan) |
 
 The three `tests/` logs are synthetic, made to check the re-arm behaviour. The real captures are `scan_sample.log` and `benign_sample.log`. To run any of them, copy it to `firewallLog.log` as described in Usage.
 
